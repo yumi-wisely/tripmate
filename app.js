@@ -253,14 +253,15 @@
     }
 
     function getMemberAvatars(trip) {
-        const members = [state.user.name];
-        trip.friendIds.forEach(fid => {
-            const f = state.friends.find(fr => fr.id === fid);
-            if (f) members.push(f.name);
+        const pids = trip.participantIds || [state.user.id, ...(trip.friendIds || [])];
+        const members = pids.map(pid => {
+            if (pid === state.user.id) return state.user.name;
+            const f = state.friends.find(fr => fr.id === pid);
+            return f ? f.name : '?';
         });
 
         const avatars = members.slice(0, 4).map(name =>
-            `<div class="member-avatar">${name.charAt(0)}</div>`
+            `<div class="member-avatar">${name ? name.charAt(0) : '?'}</div>`
         ).join('');
 
         const extra = members.length > 4 ? `<span class="member-count">+${members.length - 4}</span>` : '';
@@ -454,10 +455,12 @@
         // Meta
         const meta = document.getElementById('trip-meta');
         const days = getTripDays(trip);
-        const memberNames = [state.user.name, ...trip.friendIds.map(fid => {
-            const f = state.friends.find(fr => fr.id === fid);
-            return f ? f.name : '不明';
-        })];
+        const pids = trip.participantIds || [state.user.id, ...(trip.friendIds || [])];
+        const memberNames = pids.map(pid => {
+            if (pid === state.user.id) return state.user.name;
+            const f = state.friends.find(fr => fr.id === pid);
+            return f ? f.name : '未登録';
+        });
 
         meta.innerHTML = `
             <span class="trip-meta-tag">
@@ -482,30 +485,50 @@
 
     function renderMemberFilter(trip) {
         const container = document.getElementById('member-filter');
-        const members = [
-            { id: state.user.id, name: state.user.name },
-            ...trip.friendIds.map(fid => {
-                const f = state.friends.find(fr => fr.id === fid);
-                return f ? { id: f.id, name: f.name } : { id: fid, name: '不明' };
-            })
-        ];
+        const pids = trip.participantIds || [state.user.id, ...(trip.friendIds || [])];
+        const members = pids.map(pid => {
+            if (pid === state.user.id) return { id: pid, name: state.user.name, isMe: true };
+            const f = state.friends.find(fr => fr.id === pid);
+            if (f) return { id: pid, name: f.name, isFriend: true };
+            return { id: pid, name: '未登録 (' + pid + ')', isUnknown: true };
+        });
 
         let html = `<button class="member-filter-btn ${currentMemberFilter === 'all' ? 'active' : ''}" data-member-filter="all">ALL</button>`;
         members.forEach(m => {
             html += `
-                <button class="member-filter-btn ${currentMemberFilter === m.id ? 'active' : ''}" data-member-filter="${m.id}">
-                    <span class="filter-avatar">${m.name.charAt(0)}</span>
-                    ${escapeHtml(m.name)}
-                </button>
+                <div style="display:inline-flex; align-items:center; position:relative; flex-shrink:0;">
+                    <button class="member-filter-btn ${currentMemberFilter === m.id ? 'active' : ''}" data-member-filter="${m.id}" style="${m.isUnknown ? 'padding-right: 36px;' : ''}">
+                        <span class="filter-avatar">${m.name ? m.name.charAt(0) : '?'}</span>
+                        ${escapeHtml(m.name)}
+                    </button>
+                    ${m.isUnknown ? `
+                        <button class="btn-add-unknown" data-unknown-id="${m.id}" title="友達に追加" style="position:absolute; right:4px; top:50%; transform:translateY(-50%); width:26px; height:26px; border-radius:50%; border:none; background:var(--accent-gradient); color:white; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        </button>
+                    ` : ''}
+                </div>
             `;
         });
         container.innerHTML = html;
 
         container.querySelectorAll('.member-filter-btn').forEach(btn => {
             btn.addEventListener('click', () => {
+                if (btn.classList.contains('btn-add-unknown')) return; // Ignore add button clicks for filter
                 currentMemberFilter = btn.dataset.memberFilter;
                 renderMemberFilter(trip);
                 renderSchedule(trip, getTripDays(trip));
+            });
+        });
+
+        container.querySelectorAll('.btn-add-unknown').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const uid = btn.dataset.unknownId;
+                const success = await addFriendById(uid);
+                if (success) {
+                    renderTripDetail(); // Re-render to show updated name
+                }
             });
         });
     }
