@@ -15,6 +15,7 @@
     };
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
+    const db = firebase.firestore();
 
     // ===== State =====
     const STATE_KEY = 'tripmate_state';
@@ -140,6 +141,20 @@
                     photoURL: firebaseUser.photoURL || '',
                 };
                 saveState();
+
+                // Save user to Firestore
+                db.collection('users').doc(firebaseUser.uid).set({
+                    uid: firebaseUser.uid,
+                    shortId: shortId,
+                    name: state.user.name,
+                    email: state.user.email,
+                    photoURL: state.user.photoURL,
+                    lastLogin: firebase.firestore.FieldValue.serverTimestamp()
+                }, { merge: true }).catch(err => console.error("Error saving user:", err));
+
+                // Listen to trips
+                listenToTrips();
+
                 navigateTo('screen-home', false);
                 renderHome();
                 showToast(`ようこそ、${state.user.name}さん！`, 'success');
@@ -291,7 +306,7 @@
         });
     }
 
-    function addFriendById(friendId) {
+    async function addFriendById(friendId) {
         friendId = friendId.trim().toUpperCase();
 
         if (!friendId) {
@@ -309,19 +324,26 @@
             return false;
         }
 
-        // Simulate friend lookup — in a real app this would be a server call
-        // For demo, we create a friend with a generated name
-        const friendNames = ['ハルカ', 'ユウト', 'サクラ', 'レン', 'アオイ', 'ソラ', 'ヒナタ', 'カイト', 'ミク', 'リク'];
-        const randomName = friendNames[Math.floor(Math.random() * friendNames.length)];
-
-        state.friends.push({
-            id: friendId,
-            name: randomName,
-        });
-        saveState();
-        renderFriends();
-        showToast(`${randomName}さんを追加しました！`, 'success');
-        return true;
+        try {
+            const snapshot = await db.collection('users').where('shortId', '==', friendId).limit(1).get();
+            if (snapshot.empty) {
+                showToast('ユーザーが見つかりません', 'error');
+                return false;
+            }
+            const userData = snapshot.docs[0].data();
+            state.friends.push({
+                id: userData.shortId,
+                name: userData.name,
+            });
+            saveState();
+            renderFriends();
+            showToast(`${userData.name}さんを追加しました！`, 'success');
+            return true;
+        } catch (e) {
+            console.error("Error adding friend:", e);
+            showToast('エラーが発生しました', 'error');
+            return false;
+        }
     }
 
     // ===== New Trip =====
@@ -350,19 +372,50 @@
         });
     }
 
-    function createTrip(name, startDate, endDate, friendIds) {
+    let unsubscribeTrips = null;
+
+    function listenToTrips() {
+        if (!state.user) return;
+        if (unsubscribeTrips) unsubscribeTrips();
+        
+        unsubscribeTrips = db.collection('trips')
+            .where('participantIds', 'array-contains', state.user.id)
+            .onSnapshot(snapshot => {
+                const loadedTrips = [];
+                snapshot.forEach(doc => {
+                    loadedTrips.push(doc.data());
+                });
+                loadedTrips.sort((a, b) => new Date(b.startDate) - new Date(a.startDate));
+                state.trips = loadedTrips;
+                saveState();
+                
+                if (currentScreen === 'screen-home') renderHome();
+                if (currentScreen === 'screen-trip' && currentTripId) {
+                    const t = state.trips.find(x => x.id === currentTripId);
+                    if (t) renderTripDetail();
+                    else goBack(); // Trip was deleted
+                }
+            }, err => console.error("Error listening to trips:", err));
+    }
+
+    async function createTrip(name, startDate, endDate, friendIds) {
+        const tripId = uuid();
         const trip = {
-            id: uuid(),
+            id: tripId,
             name: name,
             startDate: startDate,
             endDate: endDate,
             friendIds: friendIds,
+            participantIds: [state.user.id, ...friendIds],
             schedules: [],
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
         };
-        state.trips.unshift(trip);
-        saveState();
-        renderHome();
-        return trip;
+        try {
+            await db.collection('trips').doc(tripId).set(trip);
+        } catch (e) {
+            console.error("Error creating trip:", e);
+            showToast('旅行の作成に失敗しました', 'error');
+        }
     }
 
     // ===== Trip Detail =====
@@ -561,31 +614,38 @@
 
         // Delete handlers
         list.querySelectorAll('.schedule-delete-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
+            btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 const sid = btn.dataset.deleteSchedule;
-                trip.schedules = trip.schedules.filter(s => s.id !== sid);
-                saveState();
-                renderSchedule(trip, days);
-                showToast('予定を削除しました');
+                const scheduleToRemove = trip.schedules.find(s => s.id === sid);
+                if(scheduleToRemove) {
+                    try {
+                        await db.collection('trips').doc(trip.id).update({
+                            schedules: firebase.firestore.FieldValue.arrayRemove(scheduleToRemove)
+                        });
+                        showToast('予定を削除しました');
+                    } catch(err) { console.error(err); }
+                }
             });
         });
     }
 
-    function addSchedule(tripId, date, time, endTime, title, isShared) {
-        const trip = state.trips.find(t => t.id === tripId);
-        if (!trip) return;
-
-        trip.schedules.push({
-            id: uuid(),
+    async function addSchedule(tripId, date, time, endTime, title, isShared) {
+        const scheduleId = uuid();
+        const newSchedule = {
+            id: scheduleId,
             date: date,
             time: time,
             endTime: endTime || '',
             title: title,
             isShared: isShared,
             createdBy: state.user.id,
-        });
-        saveState();
+        };
+        try {
+            await db.collection('trips').doc(tripId).update({
+                schedules: firebase.firestore.FieldValue.arrayUnion(newSchedule)
+            });
+        } catch(e) { console.error("Error adding schedule:", e); }
     }
 
     function getNameById(id) {
@@ -692,10 +752,11 @@
         });
 
         // Add friend by ID form
-        document.getElementById('form-add-friend-id').addEventListener('submit', (e) => {
+        document.getElementById('form-add-friend-id').addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('friend-id-input').value;
-            if (addFriendById(id)) {
+            const success = await addFriendById(id);
+            if (success) {
                 closeAllModals();
             }
         });
@@ -745,11 +806,35 @@
             }
         });
 
+        // Edit Profile Name
+        const btnEditName = document.getElementById('btn-edit-name');
+        if(btnEditName) {
+            btnEditName.addEventListener('click', async () => {
+                if(!state.user || !auth.currentUser) return;
+                const newName = prompt('新しい表示名を入力してください', state.user.name);
+                if (newName && newName.trim().length > 0 && newName.trim() !== state.user.name) {
+                    try {
+                        const trimmed = newName.trim();
+                        await auth.currentUser.updateProfile({ displayName: trimmed });
+                        await db.collection('users').doc(state.user.uid).update({ name: trimmed });
+                        state.user.name = trimmed;
+                        saveState();
+                        renderProfile();
+                        showToast('表示名を変更しました', 'success');
+                    } catch (e) {
+                        showToast('表示名の変更に失敗しました', 'error');
+                        console.error(e);
+                    }
+                }
+            });
+        }
+
         // Logout
         document.getElementById('btn-logout').addEventListener('click', async () => {
             if (confirm('ログアウトしますか？')) {
                 try {
                     await auth.signOut();
+                    if (typeof unsubscribeTrips === 'function') unsubscribeTrips();
                     localStorage.removeItem(STATE_KEY);
                     state = defaultState();
                     screenHistory = [];
@@ -809,13 +894,13 @@
         });
 
         // Delete trip
-        document.getElementById('btn-delete-trip').addEventListener('click', () => {
+        document.getElementById('btn-delete-trip').addEventListener('click', async () => {
             if (confirm('この旅行を削除しますか？')) {
-                state.trips = state.trips.filter(t => t.id !== currentTripId);
-                saveState();
-                goBack();
-                renderHome();
-                showToast('旅行を削除しました');
+                try {
+                    await db.collection('trips').doc(currentTripId).delete();
+                    goBack();
+                    showToast('旅行を削除しました');
+                } catch(e) { console.error(e); }
             }
         });
     }
