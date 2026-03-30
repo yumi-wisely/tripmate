@@ -228,10 +228,23 @@
             const memberAvatars = getMemberAvatars(trip);
             const startFormatted = formatDateShort(trip.startDate);
             const endFormatted = formatDateShort(trip.endDate);
+            const isCreator = trip.createdBy === state.user.id || (trip.participantIds && trip.participantIds[0] === state.user.id);
 
             return `
                 <div class="trip-card" data-trip-id="${trip.id}">
-                    <div class="trip-card-name">${escapeHtml(trip.name)}</div>
+                    <div class="trip-card-header" style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+                        <div class="trip-card-name" style="margin-bottom:0; font-size:17px; font-weight:700; color:var(--text-primary);">${escapeHtml(trip.name)}</div>
+                        ${isCreator ? `
+                        <div class="trip-actions" style="display:flex; gap:4px; margin-top:-4px; margin-right:-8px;">
+                            <button class="icon-btn btn-ghost trip-edit-btn" data-edit-trip="${trip.id}" style="width:32px; height:32px;" title="編集">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </button>
+                            <button class="icon-btn btn-ghost trip-delete-btn" data-delete-trip="${trip.id}" style="width:32px; height:32px; color:var(--danger)" title="削除">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            </button>
+                        </div>
+                        ` : ''}
+                    </div>
                     <div class="trip-card-dates">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                         ${startFormatted} 〜 ${endFormatted}
@@ -245,10 +258,33 @@
 
         // Click handlers
         tripList.querySelectorAll('.trip-card').forEach(card => {
-            card.addEventListener('click', () => {
+            card.addEventListener('click', (e) => {
+                if(e.target.closest('.trip-edit-btn') || e.target.closest('.trip-delete-btn')) return;
                 const tripId = card.dataset.tripId;
                 openTripDetail(tripId);
             });
+            
+            const editBtn = card.querySelector('.trip-edit-btn');
+            if(editBtn) {
+                editBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    openEditTripModal(card.dataset.tripId);
+                });
+            }
+            
+            const delBtn = card.querySelector('.trip-delete-btn');
+            if(delBtn) {
+                delBtn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    if (confirm('この旅行を削除しますか？')) {
+                        try {
+                            await db.collection('trips').doc(card.dataset.tripId).delete();
+                            showToast('旅行を削除しました');
+                            // renderHome will be triggered by onSnapshot
+                        } catch(err) { console.error(err); }
+                    }
+                });
+            }
         });
     }
 
@@ -399,7 +435,50 @@
             }, err => console.error("Error listening to trips:", err));
     }
 
+    let editingTripId = null;
+
+    function openEditTripModal(tripId) {
+        const trip = state.trips.find(t => t.id === tripId);
+        if (!trip) return;
+        editingTripId = tripId;
+        
+        const titleEl = document.getElementById('modal-trip-title');
+        const submitEl = document.getElementById('btn-submit-trip');
+        if(titleEl) titleEl.textContent = '旅行を編集';
+        if(submitEl) submitEl.textContent = '保存する';
+        
+        document.getElementById('trip-name').value = trip.name;
+        document.getElementById('trip-start').value = trip.startDate;
+        document.getElementById('trip-end').value = trip.endDate;
+        
+        renderFriendSelector();
+        // Prefill friends
+        document.querySelectorAll('.friend-check-item').forEach(item => {
+            if (trip.friendIds && trip.friendIds.includes(item.dataset.checkFriend)) {
+                item.classList.add('selected');
+            } else {
+                item.classList.remove('selected');
+            }
+        });
+        
+        openModal('modal-new-trip');
+    }
+
     async function createTrip(name, startDate, endDate, friendIds) {
+        if (editingTripId) {
+            try {
+                const participantIds = [state.user.id, ...friendIds];
+                await db.collection('trips').doc(editingTripId).update({
+                    name, startDate, endDate, friendIds, participantIds
+                });
+                editingTripId = null;
+            } catch (e) {
+                console.error("Error updating trip:", e);
+                showToast('旅行の更新に失敗しました', 'error');
+            }
+            return;
+        }
+
         const tripId = uuid();
         const trip = {
             id: tripId,
@@ -408,6 +487,7 @@
             endDate: endDate,
             friendIds: friendIds,
             participantIds: [state.user.id, ...friendIds],
+            createdBy: state.user.id,
             schedules: [],
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         };
@@ -451,6 +531,18 @@
 
         // Title
         document.getElementById('trip-detail-title').textContent = trip.name;
+
+        // Permissions
+        const isCreator = trip.createdBy === state.user.id || (trip.participantIds && trip.participantIds[0] === state.user.id);
+        const delBtn = document.getElementById('btn-delete-trip');
+        const editBtn = document.getElementById('btn-edit-trip-detail');
+        if (isCreator) {
+            if(delBtn) delBtn.style.display = '';
+            if(editBtn) editBtn.style.display = '';
+        } else {
+            if(delBtn) delBtn.style.display = 'none';
+            if(editBtn) editBtn.style.display = 'none';
+        }
 
         // Meta
         const meta = document.getElementById('trip-meta');
@@ -730,6 +822,12 @@
 
         // New trip button
         document.getElementById('btn-new-trip').addEventListener('click', () => {
+            editingTripId = null;
+            const titleEl = document.getElementById('modal-trip-title');
+            const submitEl = document.getElementById('btn-submit-trip');
+            if(titleEl) titleEl.textContent = '新しい旅行';
+            if(submitEl) submitEl.textContent = '旅行を作成';
+
             renderFriendSelector();
             // Set default dates
             const today = new Date();
@@ -765,7 +863,7 @@
 
             createTrip(name, startDate, endDate, selectedFriends);
             closeAllModals();
-            showToast('旅行を作成しました！ 🎉', 'success');
+            showToast(editingTripId ? '旅行を更新しました！' : '旅行を作成しました！ 🎉', 'success');
         });
 
         // Add friend button
@@ -916,12 +1014,22 @@
             showToast('予定を追加しました！', 'success');
         });
 
+        // Edit trip Detail
+        const btnEditDetail = document.getElementById('btn-edit-trip-detail');
+        if (btnEditDetail) {
+            btnEditDetail.addEventListener('click', () => {
+                if (currentTripId) openEditTripModal(currentTripId);
+            });
+        }
+
         // Delete trip
         document.getElementById('btn-delete-trip').addEventListener('click', async () => {
             if (confirm('この旅行を削除しますか？')) {
                 try {
                     await db.collection('trips').doc(currentTripId).delete();
+                    currentTripId = null;
                     goBack();
+                    renderHome(); // IMPORTANT FIX
                     showToast('旅行を削除しました');
                 } catch(e) { console.error(e); }
             }
