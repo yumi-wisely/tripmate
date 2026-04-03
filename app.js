@@ -261,7 +261,7 @@
             card.addEventListener('click', (e) => {
                 if(e.target.closest('.trip-edit-btn') || e.target.closest('.trip-delete-btn')) return;
                 const tripId = card.dataset.tripId;
-                openTripDetail(tripId);
+                openTripOverview(tripId);
             });
             
             const editBtn = card.querySelector('.trip-edit-btn');
@@ -427,10 +427,15 @@
                 saveState();
                 
                 if (currentScreen === 'screen-home') renderHome();
+                if (currentScreen === 'screen-trip-overview' && currentTripId) {
+                    const t = state.trips.find(x => x.id === currentTripId);
+                    if (t) renderTripOverview();
+                    else { currentTripId = null; goBack(); }
+                }
                 if (currentScreen === 'screen-trip' && currentTripId) {
                     const t = state.trips.find(x => x.id === currentTripId);
                     if (t) renderTripDetail();
-                    else goBack(); // Trip was deleted
+                    else { currentTripId = null; goBack(); } // Trip was deleted
                 }
             }, err => console.error("Error listening to trips:", err));
     }
@@ -493,9 +498,77 @@
         };
         try {
             await db.collection('trips').doc(tripId).set(trip);
+            return tripId;
         } catch (e) {
             console.error("Error creating trip:", e);
             showToast('旅行の作成に失敗しました', 'error');
+            return null;
+        }
+    }
+
+    // ===== Trip Overview =====
+    function openTripOverview(tripId) {
+        currentTripId = tripId;
+        navigateTo('screen-trip-overview');
+        renderTripOverview();
+    }
+
+    function renderTripOverview() {
+        const trip = state.trips.find(t => t.id === currentTripId);
+        if (!trip) return;
+
+        document.getElementById('overview-title').textContent = trip.name;
+        
+        const banner = document.getElementById('overview-banner');
+        const coverImg = document.getElementById('overview-cover-img');
+        const iconEl = document.getElementById('overview-icon');
+        const purposeEl = document.getElementById('overview-purpose');
+        const editHints = document.querySelectorAll('#screen-trip-overview .edit-hint');
+        
+        const isCreator = trip.createdBy === state.user.id || (trip.participantIds && trip.participantIds[0] === state.user.id);
+        
+        if (isCreator) {
+            document.getElementById('btn-edit-purpose').style.display = '';
+            banner.style.cursor = 'pointer';
+            iconEl.style.cursor = 'pointer';
+            editHints.forEach(el => el.style.display = '');
+        } else {
+            document.getElementById('btn-edit-purpose').style.display = 'none';
+            banner.style.cursor = 'default';
+            iconEl.style.cursor = 'default';
+            editHints.forEach(el => el.style.display = 'none');
+        }
+
+        if (trip.coverImage) {
+            coverImg.src = trip.coverImage;
+            coverImg.style.display = 'block';
+        } else {
+            coverImg.style.display = 'none';
+            banner.style.background = 'linear-gradient(135deg, var(--accent-start), var(--accent-mid))';
+        }
+
+        iconEl.textContent = trip.icon || '✈️';
+        purposeEl.textContent = trip.purpose || 'まだ目的が設定されていません。';
+
+        // Render Tasks
+        const taskList = document.getElementById('task-list');
+        const tasks = trip.tasks || [];
+        if (tasks.length === 0) {
+            taskList.innerHTML = '<p style="text-align:center; color:var(--text-tertiary); font-size:13px; margin-top:20px;">タスクはありません</p>';
+        } else {
+            taskList.innerHTML = tasks.map(task => `
+                <div class="task-item" style="display:flex; align-items:center; gap:12px; padding:12px; background:white; border-radius:var(--radius-md); border:1px solid var(--border-light);">
+                    <div class="task-checkbox" data-task-id="${task.id}" style="width:24px; height:24px; border-radius:50%; border:2px solid ${task.isCompleted ? 'var(--success)' : 'var(--border)'}; background:${task.isCompleted ? 'var(--success)' : 'transparent'}; display:flex; align-items:center; justify-content:center; flex-shrink:0; cursor:pointer;">
+                        ${task.isCompleted ? '<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
+                    </div>
+                    <div style="flex:1; font-size:15px; color:${task.isCompleted ? 'var(--text-tertiary)' : 'var(--text-primary)'}; text-decoration:${task.isCompleted ? 'line-through' : 'none'}; word-break:break-all;">
+                        ${escapeHtml(task.text)}
+                    </div>
+                    <button class="icon-btn btn-ghost task-delete-btn" data-task-id="${task.id}" style="width:28px; height:28px; color:var(--text-tertiary); flex-shrink:0;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>
+            `).join('');
         }
     }
 
@@ -504,8 +577,7 @@
     let currentDayIndex = 0;
     let currentMemberFilter = 'all';
 
-    function openTripDetail(tripId) {
-        currentTripId = tripId;
+    function openTripSchedule() {
         currentDayIndex = 0;
         currentMemberFilter = 'all';
         navigateTo('screen-trip');
@@ -706,7 +778,11 @@
                         ${timeDisplay}
                         <span class="schedule-scope-tag">${scopeLabel}</span>
                     </div>
-                    <div class="schedule-title">${escapeHtml(s.title)}</div>
+                    <div class="schedule-title">
+                        ${s.icon ? `<span class="schedule-icon-display">${s.icon}</span>` : ''}
+                        ${escapeHtml(s.title)}
+                    </div>
+                    ${s.memo ? `<div class="schedule-memo" style="font-size:13px; color:var(--text-secondary); margin-top:4px; padding-left:12px; border-left:2px solid var(--border); white-space:pre-wrap;">${escapeHtml(s.memo)}</div>` : ''}
                     <div class="schedule-creator">${creator}が追加</div>
                     <button class="schedule-delete-btn" data-delete-schedule="${s.id}" aria-label="削除">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
@@ -745,7 +821,7 @@
         });
     }
 
-    async function addSchedule(tripId, date, time, endTime, title, isShared) {
+    async function addSchedule(tripId, date, time, endTime, title, memo, isShared, icon) {
         const scheduleId = uuid();
         const newSchedule = {
             id: scheduleId,
@@ -753,7 +829,9 @@
             time: time,
             endTime: endTime || '',
             title: title,
+            memo: memo || '',
             isShared: isShared,
+            icon: icon || '📍',
             createdBy: state.user.id,
         };
         try {
@@ -840,7 +918,7 @@
         });
 
         // New trip form submit
-        document.getElementById('form-new-trip').addEventListener('submit', (e) => {
+        document.getElementById('form-new-trip').addEventListener('submit', async (e) => {
             e.preventDefault();
             const name = document.getElementById('trip-name').value.trim();
             const startDate = document.getElementById('trip-start').value;
@@ -861,9 +939,14 @@
                 selectedFriends.push(item.dataset.checkFriend);
             });
 
-            createTrip(name, startDate, endDate, selectedFriends);
+            const tripId = await createTrip(name, startDate, endDate, selectedFriends);
             closeAllModals();
             showToast(editingTripId ? '旅行を更新しました！' : '旅行を作成しました！ 🎉', 'success');
+            
+            if (!editingTripId && tripId) {
+                // Navigate to the newly created trip overview
+                openTripOverview(tripId);
+            }
         });
 
         // Add friend button
@@ -971,6 +1054,8 @@
             document.getElementById('schedule-time').value = '';
             document.getElementById('schedule-end-time').value = '';
             document.getElementById('schedule-title').value = '';
+            const memoEl = document.getElementById('schedule-memo');
+            if (memoEl) memoEl.value = '';
             // Reset toggle
             document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
             document.querySelector('.toggle-btn[data-scope="shared"]').classList.add('active');
@@ -981,6 +1066,14 @@
         document.querySelectorAll('.toggle-btn[data-scope]').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.toggle-btn[data-scope]').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+
+        // Schedule icon picker
+        document.querySelectorAll('.icon-btn-choice').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.icon-btn-choice').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
             });
         });
@@ -996,7 +1089,12 @@
             const time = document.getElementById('schedule-time').value;
             const endTime = document.getElementById('schedule-end-time').value;
             const title = document.getElementById('schedule-title').value.trim();
+            const memoEl = document.getElementById('schedule-memo');
+            const memo = memoEl ? memoEl.value.trim() : '';
             const isShared = document.querySelector('.toggle-btn[data-scope].active').dataset.scope === 'shared';
+            
+            const activeIconBtn = document.querySelector('.icon-btn-choice.active');
+            const icon = activeIconBtn ? activeIconBtn.dataset.icon : '📍';
 
             if (!time || !title) {
                 showToast('すべての項目を入力してください', 'error');
@@ -1008,7 +1106,7 @@
                 return;
             }
 
-            addSchedule(currentTripId, dayStr, time, endTime, title, isShared);
+            addSchedule(currentTripId, dayStr, time, endTime, title, memo, isShared, icon);
             closeAllModals();
             renderSchedule(trip, days);
             showToast('予定を追加しました！', 'success');
@@ -1034,6 +1132,123 @@
                 } catch(e) { console.error(e); }
             }
         });
+
+        // ===== Trip Overview Events =====
+        const bannerEl = document.getElementById('overview-banner');
+        if (bannerEl) {
+            bannerEl.addEventListener('click', async () => {
+                const trip = state.trips.find(t => t.id === currentTripId);
+                // check permissions: creator or first participant
+                if (!trip || (trip.createdBy !== state.user.id && (!trip.participantIds || trip.participantIds[0] !== state.user.id))) return;
+                
+                const newUrl = prompt('カバー画像のURLを入力してください', trip.coverImage || '');
+                if (newUrl !== null) {
+                    try {
+                        await db.collection('trips').doc(currentTripId).update({ coverImage: newUrl.trim() });
+                        showToast('カバー画像を設定しました', 'success');
+                    } catch (e) {
+                        console.error(e);
+                        showToast('更新に失敗しました', 'error');
+                    }
+                }
+            });
+        }
+
+        const iconEl = document.getElementById('overview-icon');
+        if (iconEl) {
+            iconEl.addEventListener('click', async (e) => {
+                e.stopPropagation(); // prevent banner click
+                const trip = state.trips.find(t => t.id === currentTripId);
+                if (!trip || (trip.createdBy !== state.user.id && (!trip.participantIds || trip.participantIds[0] !== state.user.id))) return;
+                
+                const newIcon = prompt('アイコンの絵文字を入力してください', trip.icon || '✈️');
+                if (newIcon !== null && newIcon.trim().length > 0) {
+                    try {
+                        await db.collection('trips').doc(currentTripId).update({ icon: newIcon.trim() });
+                        showToast('アイコンを更新しました', 'success');
+                    } catch (err) {
+                        console.error(err);
+                        showToast('更新に失敗しました', 'error');
+                    }
+                }
+            });
+        }
+
+        const btnEditPurpose = document.getElementById('btn-edit-purpose');
+        if (btnEditPurpose) {
+            btnEditPurpose.addEventListener('click', async () => {
+                const trip = state.trips.find(t => t.id === currentTripId);
+                if (!trip) return;
+                const newPurpose = prompt('旅の目的・メモを入力', trip.purpose || '');
+                if (newPurpose !== null) {
+                    try {
+                        await db.collection('trips').doc(currentTripId).update({ purpose: newPurpose });
+                        showToast('目的を更新しました', 'success');
+                    } catch (e) {
+                        console.error(e);
+                        showToast('更新に失敗しました', 'error');
+                    }
+                }
+            });
+        }
+
+        const btnAddTask = document.getElementById('btn-add-task');
+        if (btnAddTask) {
+            btnAddTask.addEventListener('click', async () => {
+                const input = document.getElementById('new-task-input');
+                const text = input.value.trim();
+                if (!text || !currentTripId) return;
+                try {
+                    const newTask = { id: uuid(), text, isCompleted: false };
+                    await db.collection('trips').doc(currentTripId).update({
+                        tasks: firebase.firestore.FieldValue.arrayUnion(newTask)
+                    });
+                    input.value = '';
+                    showToast('タスクを追加しました', 'success');
+                } catch (e) {
+                    console.error(e);
+                    showToast('追加に失敗しました', 'error');
+                }
+            });
+        }
+
+        const taskList = document.getElementById('task-list');
+        if (taskList) {
+            taskList.addEventListener('click', async (e) => {
+                const checkBtn = e.target.closest('.task-checkbox');
+                const delBtn = e.target.closest('.task-delete-btn');
+                
+                if (checkBtn) {
+                    const taskId = checkBtn.dataset.taskId;
+                    const trip = state.trips.find(t => t.id === currentTripId);
+                    if (!trip || !trip.tasks) return;
+                    const updatedTasks = trip.tasks.map(t => t.id === taskId ? { ...t, isCompleted: !t.isCompleted } : t);
+                    try {
+                        await db.collection('trips').doc(currentTripId).update({ tasks: updatedTasks });
+                    } catch (err) { console.error(err); }
+                } else if (delBtn) {
+                    const taskId = delBtn.dataset.taskId;
+                    const trip = state.trips.find(t => t.id === currentTripId);
+                    if (!trip || !trip.tasks) return;
+                    const taskToRemove = trip.tasks.find(t => t.id === taskId);
+                    if (taskToRemove && confirm('このタスクを削除しますか？')) {
+                        try {
+                            await db.collection('trips').doc(currentTripId).update({
+                                tasks: firebase.firestore.FieldValue.arrayRemove(taskToRemove)
+                            });
+                            showToast('タスクを削除しました');
+                        } catch (err) { console.error(err); }
+                    }
+                }
+            });
+        }
+
+        const btnGoSchedule = document.getElementById('btn-go-schedule');
+        if (btnGoSchedule) {
+            btnGoSchedule.addEventListener('click', () => {
+                if (currentTripId) openTripSchedule();
+            });
+        }
     }
 
     // ===== Init =====

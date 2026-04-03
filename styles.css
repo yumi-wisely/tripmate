@@ -287,7 +287,8 @@ body {
 
 .input-group input[type="text"],
 .input-group input[type="date"],
-.input-group input[type="time"] {
+.input-group input[type="time"],
+.input-group textarea {
     width: 100%;
     padding: 14px 16px;
     border-radius: var(--radius-md);
@@ -298,14 +299,17 @@ body {
     font-size: 15px;
     outline: none;
     transition: border-color var(--transition), background var(--transition);
+    resize: vertical;
 }
 
-.input-group input:focus {
+.input-group input:focus,
+.input-group textarea:focus {
     border-color: var(--accent-mid);
     background: rgba(139, 92, 246, 0.06);
 }
 
-.input-group input::placeholder {
+.input-group input::placeholder,
+.input-group textarea::placeholder {
     color: var(--text-tertiary);
 }
 
@@ -1324,6 +1328,59 @@ body {
     margin-top: 12px;
     font-size: 13px;
     text-align: center;
+}
+
+/* ===== Schedule Icon Picker ===== */
+.schedule-icon-picker {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.schedule-icon-picker::-webkit-scrollbar {
+    display: none;
+}
+
+.icon-btn-choice {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--transition);
+}
+
+.icon-btn-choice.active {
+    background: rgba(139, 92, 246, 0.15);
+    border-color: var(--accent-mid);
+    box-shadow: 0 0 8px rgba(139, 92, 246, 0.4);
+}
+
+.icon-btn-choice:active:not(.active) {
+    transform: scale(0.9);
+}
+
+.schedule-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.schedule-icon-display {
+    font-size: 18px;
+    line-height: 1;
 }
 
 /* ===== Toast ===== */
