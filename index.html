@@ -147,7 +147,10 @@
                 <button class="icon-btn back-btn" data-back aria-label="戻る">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
                 </button>
-                <h1 id="overview-title" class="header-title">旅行の概要</h1>
+                <div style="display:flex; flex-direction:column; align-items:center; flex:1; overflow:hidden;">
+                    <h1 id="overview-title" class="header-title" style="font-size:18px; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;">旅行の概要</h1>
+                    <div id="overview-dates" style="font-size:12px; color:var(--text-tertiary); font-weight:500;"></div>
+                </div>
                 <div class="header-actions"></div>
             </header>
             <div class="overview-content" style="flex:1; overflow-y:auto; padding-bottom:100px; -webkit-overflow-scrolling: touch;">
@@ -260,6 +263,12 @@
                         <div class="input-group">
                             <label for="trip-end">終了日</label>
                             <input type="date" id="trip-end" required>
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label>カバー画像</label>
+                        <div id="cover-image-selector" class="cover-image-selector">
+                            <!-- JS will populate options -->
                         </div>
                     </div>
                     <div class="input-group">

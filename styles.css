@@ -1442,3 +1442,41 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 .hidden {
     display: none !important;
 }
+
+/* ===== Cover Image Selector ===== */
+.cover-image-selector {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    -webkit-overflow-scrolling: touch;
+}
+.cover-image-selector::-webkit-scrollbar {
+    height: 4px;
+}
+.cover-image-selector::-webkit-scrollbar-track {
+    background: transparent;
+}
+.cover-image-selector::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+}
+.cover-option {
+    width: 80px;
+    height: 60px;
+    border-radius: var(--radius-sm);
+    border: 3px solid transparent;
+    cursor: pointer;
+    flex-shrink: 0;
+    object-fit: cover;
+    transition: all var(--transition);
+    opacity: 0.6;
+}
+.cover-option:hover {
+    opacity: 0.8;
+}
+.cover-option.selected {
+    border-color: var(--accent-mid);
+    opacity: 1;
+    transform: scale(1.05);
+}

@@ -457,6 +457,10 @@
         document.getElementById('trip-end').value = trip.endDate;
         
         renderFriendSelector();
+        
+        selectedCoverImage = trip.coverImage || COVER_IMAGES[0];
+        renderCoverSelector();
+        
         // Prefill friends
         document.querySelectorAll('.friend-check-item').forEach(item => {
             if (trip.friendIds && trip.friendIds.includes(item.dataset.checkFriend)) {
@@ -469,12 +473,42 @@
         openModal('modal-new-trip');
     }
 
-    async function createTrip(name, startDate, endDate, friendIds) {
+    const COVER_IMAGES = [
+        "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=800&q=80",
+        "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80",
+        "https://images.unsplash.com/photo-1499856871958-5b9627545d1a?w=800&q=80",
+        "https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=800&q=80",
+        "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=800&q=80",
+        "https://images.unsplash.com/photo-1602216056096-3b40cc0c9944?w=800&q=80",
+        "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=800&q=80",
+        "https://images.unsplash.com/photo-1518684079-3c830dcef090?w=800&q=80",
+        "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800&q=80",
+        "https://images.unsplash.com/photo-1542281286-9e0a16bb7366?w=800&q=80"
+    ];
+    let selectedCoverImage = COVER_IMAGES[0];
+
+    function renderCoverSelector() {
+        const selector = document.getElementById('cover-image-selector');
+        if(!selector) return;
+        selector.innerHTML = COVER_IMAGES.map(url => `
+            <img src="${url}" class="cover-option ${url === selectedCoverImage ? 'selected' : ''}" data-url="${url}">
+        `).join('');
+
+        selector.querySelectorAll('.cover-option').forEach(img => {
+            img.addEventListener('click', () => {
+                selector.querySelectorAll('.cover-option').forEach(el => el.classList.remove('selected'));
+                img.classList.add('selected');
+                selectedCoverImage = img.dataset.url;
+            });
+        });
+    }
+
+    async function createTrip(name, startDate, endDate, friendIds, coverImage) {
         if (editingTripId) {
             try {
                 const participantIds = [state.user.id, ...friendIds];
                 await db.collection('trips').doc(editingTripId).update({
-                    name, startDate, endDate, friendIds, participantIds
+                    name, startDate, endDate, friendIds, participantIds, coverImage
                 });
                 editingTripId = null;
             } catch (e) {
@@ -493,6 +527,7 @@
             friendIds: friendIds,
             participantIds: [state.user.id, ...friendIds],
             createdBy: state.user.id,
+            coverImage: coverImage,
             schedules: [],
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         };
@@ -518,6 +553,11 @@
         if (!trip) return;
 
         document.getElementById('overview-title').textContent = trip.name;
+        
+        const startFormatted = formatDateShort(trip.startDate);
+        const endFormatted = formatDateShort(trip.endDate);
+        const datesEl = document.getElementById('overview-dates');
+        if (datesEl) datesEl.textContent = `${startFormatted} 〜 ${endFormatted}`;
         
         const banner = document.getElementById('overview-banner');
         const coverImg = document.getElementById('overview-cover-img');
@@ -557,11 +597,11 @@
             taskList.innerHTML = '<p style="text-align:center; color:var(--text-tertiary); font-size:13px; margin-top:20px;">タスクはありません</p>';
         } else {
             taskList.innerHTML = tasks.map(task => `
-                <div class="task-item" style="display:flex; align-items:center; gap:12px; padding:12px; background:white; border-radius:var(--radius-md); border:1px solid var(--border-light);">
-                    <div class="task-checkbox" data-task-id="${task.id}" style="width:24px; height:24px; border-radius:50%; border:2px solid ${task.isCompleted ? 'var(--success)' : 'var(--border)'}; background:${task.isCompleted ? 'var(--success)' : 'transparent'}; display:flex; align-items:center; justify-content:center; flex-shrink:0; cursor:pointer;">
-                        ${task.isCompleted ? '<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
+                <div class="task-item" style="display:flex; align-items:center; gap:8px; padding:8px; background:transparent; border:none; justify-content:flex-start;">
+                    <div class="task-checkbox" data-task-id="${task.id}" style="width:18px; height:18px; border-radius:4px; border:2px solid ${task.isCompleted ? 'var(--success)' : 'var(--border)'}; background:${task.isCompleted ? 'var(--success)' : 'transparent'}; display:flex; align-items:center; justify-content:center; flex-shrink:0; cursor:pointer;">
+                        ${task.isCompleted ? '<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" width="12" height="12"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
                     </div>
-                    <div style="flex:1; font-size:15px; color:${task.isCompleted ? 'var(--text-tertiary)' : 'var(--text-primary)'}; text-decoration:${task.isCompleted ? 'line-through' : 'none'}; word-break:break-all;">
+                    <div style="flex:1; font-size:13px; color:${task.isCompleted ? 'var(--text-tertiary)' : 'var(--text-primary)'}; text-decoration:${task.isCompleted ? 'line-through' : 'none'}; word-break:break-all; text-align:left;">
                         ${escapeHtml(task.text)}
                     </div>
                     <button class="icon-btn btn-ghost task-delete-btn" data-task-id="${task.id}" style="width:28px; height:28px; color:var(--text-tertiary); flex-shrink:0;">
@@ -907,6 +947,9 @@
             if(submitEl) submitEl.textContent = '旅行を作成';
 
             renderFriendSelector();
+            selectedCoverImage = COVER_IMAGES[0];
+            renderCoverSelector();
+            
             // Set default dates
             const today = new Date();
             const tomorrow = new Date(today);
@@ -939,7 +982,7 @@
                 selectedFriends.push(item.dataset.checkFriend);
             });
 
-            const tripId = await createTrip(name, startDate, endDate, selectedFriends);
+            const tripId = await createTrip(name, startDate, endDate, selectedFriends, selectedCoverImage);
             closeAllModals();
             showToast(editingTripId ? '旅行を更新しました！' : '旅行を作成しました！ 🎉', 'success');
             
