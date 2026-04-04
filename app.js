@@ -230,13 +230,19 @@
             const endFormatted = formatDateShort(trip.endDate);
             const isCreator = trip.createdBy === state.user.id || (trip.participantIds && trip.participantIds[0] === state.user.id);
 
+            const cardStyle = trip.coverImage 
+                ? `background-image: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.7)), url('${trip.coverImage}'); background-size: cover; background-position: center; border: none;`
+                : '';
+            const titleColor = trip.coverImage ? 'white' : 'var(--text-primary)';
+            const dateColor = trip.coverImage ? 'rgba(255,255,255,0.8)' : 'var(--text-secondary)';
+
             return `
-                <div class="trip-card" data-trip-id="${trip.id}">
+                <div class="trip-card" data-trip-id="${trip.id}" style="${cardStyle}">
                     <div class="trip-card-header" style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
-                        <div class="trip-card-name" style="margin-bottom:0; font-size:17px; font-weight:700; color:var(--text-primary);">${escapeHtml(trip.name)}</div>
+                        <div class="trip-card-name" style="margin-bottom:0; font-size:17px; font-weight:700; color:${titleColor};">${escapeHtml(trip.name)}</div>
                         ${isCreator ? `
                         <div class="trip-actions" style="display:flex; gap:4px; margin-top:-4px; margin-right:-8px;">
-                            <button class="icon-btn btn-ghost trip-edit-btn" data-edit-trip="${trip.id}" style="width:32px; height:32px;" title="編集">
+                            <button class="icon-btn btn-ghost trip-edit-btn" data-edit-trip="${trip.id}" style="width:32px; height:32px; color:${titleColor};" title="編集">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                             </button>
                             <button class="icon-btn btn-ghost trip-delete-btn" data-delete-trip="${trip.id}" style="width:32px; height:32px; color:var(--danger)" title="削除">
@@ -245,7 +251,7 @@
                         </div>
                         ` : ''}
                     </div>
-                    <div class="trip-card-dates">
+                    <div class="trip-card-dates" style="color:${dateColor};">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                         ${startFormatted} 〜 ${endFormatted}
                     </div>
@@ -589,6 +595,29 @@
 
         iconEl.textContent = trip.icon || '✈️';
         purposeEl.textContent = trip.purpose || 'まだ目的が設定されていません。';
+
+        // Render Members
+        const membersContainer = document.getElementById('overview-members');
+        if (membersContainer) {
+            const pids = trip.participantIds || [state.user.id, ...(trip.friendIds || [])];
+            membersContainer.innerHTML = pids.map(pid => {
+                let name = '未登録';
+                if (pid === state.user.id) name = state.user.name;
+                else {
+                    const f = state.friends.find(fr => fr.id === pid);
+                    if (f) name = f.name;
+                }
+                const initial = name ? name.charAt(0) : '?';
+                return `
+                    <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                        <div style="width:48px; height:48px; border-radius:50%; background:var(--accent-gradient); color:white; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:700; box-shadow:var(--shadow-sm); border:2px solid var(--bg-primary);">
+                            ${initial}
+                        </div>
+                        <span style="font-size:12px; color:var(--text-secondary); font-weight:600;">${escapeHtml(name)}</span>
+                    </div>
+                `;
+            }).join('');
+        }
 
         // Render Tasks
         const taskList = document.getElementById('task-list');
