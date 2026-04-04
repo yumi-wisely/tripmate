@@ -192,8 +192,8 @@
             </div>
             
             <div style="position:absolute; bottom:0; left:0; right:0; padding:16px 20px; background:var(--bg-glass-strong); backdrop-filter:blur(10px); border-top:1px solid var(--border-light); z-index:10; display:flex; gap:12px;">
-                <button id="btn-go-schedule" class="btn btn-secondary" style="flex:1; font-size:15px; padding:16px;">
-                    📅 しおり
+                <button id="btn-go-schedule" class="btn btn-schedule" style="flex:1; font-size:15px; padding:16px;">
+                    📅 スケジュール
                 </button>
                 <button id="btn-go-expenses" class="btn btn-primary" style="flex:1; font-size:15px; padding:16px;">
                     💰 経費・精算
@@ -217,6 +217,8 @@
                     </button>
                 </div>
             </header>
+
+            <div id="schedule-cover-banner" style="height:120px; background-size:cover; background-position:center; display:none; border-bottom:1px solid var(--border-light);"></div>
 
             <div class="trip-meta" id="trip-meta"></div>
 
@@ -438,29 +440,32 @@
                     </button>
                 </div>
                 <form id="form-add-expense" class="modal-body">
-                    <div class="input-row">
-                        <div class="input-group" style="flex:2;">
-                            <label for="expense-amount">金額 (円)</label>
-                            <input type="number" id="expense-amount" placeholder="0" required min="1" step="1" style="font-size:24px; font-weight:700;">
+                    <div class="input-row" style="gap:8px;">
+                        <div class="input-group" style="flex:1.5; min-width:0;">
+                            <label for="expense-amount">金額</label>
+                            <div style="display:flex; align-items:center; background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius-md); padding:0 12px;">
+                                <span style="font-size:16px; font-weight:700; color:var(--text-secondary);">¥</span>
+                                <input type="number" id="expense-amount" placeholder="0" required min="1" step="1" style="font-size:20px; font-weight:700; padding:12px 8px; width:100%; border:none; background:transparent; outline:none;">
+                            </div>
                         </div>
-                        <div class="input-group" style="flex:1;">
+                        <div class="input-group" style="flex:1; min-width:0;">
                             <label for="expense-date">日付</label>
-                            <input type="date" id="expense-date" required>
+                            <input type="date" id="expense-date" required style="padding:12px 8px; font-size:13px; width:100%;">
                         </div>
                     </div>
                     <div class="input-group">
                         <label for="expense-title">何（どこ）</label>
-                        <input type="text" id="expense-title" placeholder="例: ホテル代、夕食、タクシー" required maxlength="50">
+                        <input type="text" id="expense-title" placeholder="例: ホテル代、夕食" required maxlength="50" style="padding:12px;">
                     </div>
                     <div class="input-group">
                         <label for="expense-payer">支払った人</label>
-                        <select id="expense-payer" style="width:100%; padding:14px 16px; border-radius:var(--radius-md); border:1px solid var(--border); background:var(--bg-input); font-family:var(--font); font-size:15px; outline:none; appearance:none;">
+                        <select id="expense-payer" style="width:100%; padding:12px; border-radius:var(--radius-md); border:1px solid var(--border); background:var(--bg-input); font-family:var(--font); font-size:14px; outline:none; appearance:none;">
                             <!-- Populated dynamically -->
                         </select>
                     </div>
                     <div class="input-group">
                         <label>誰と割るか (デフォルトは全員)</label>
-                        <div id="expense-split-selector" class="split-selector" style="display:flex; flex-wrap:wrap; gap:8px;">
+                        <div id="expense-split-selector" class="split-selector" style="display:flex; flex-wrap:wrap; gap:4px;">
                             <!-- Populated dynamically -->
                         </div>
                     </div>

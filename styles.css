@@ -1050,32 +1050,45 @@ body {
     margin-top: 4px;
 }
 
-.schedule-delete-btn {
+.schedule-actions {
     position: absolute;
     top: 50%;
     right: 12px;
     transform: translateY(-50%) scale(0.8);
-    width: 32px;
-    height: 32px;
-    border-radius: var(--radius-full);
-    border: none;
-    background: var(--danger-bg);
-    color: var(--danger);
     display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
+    gap: 8px;
     opacity: 0;
     pointer-events: none;
     transition: all var(--transition-spring);
 }
 
-.schedule-delete-btn svg {
+.schedule-action-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-full);
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.schedule-action-btn svg {
     width: 14px;
     height: 14px;
 }
 
-.schedule-item.expanded .schedule-delete-btn {
+.schedule-delete-btn {
+    background: var(--danger-bg);
+    color: var(--danger);
+}
+
+.schedule-edit-btn {
+    background: rgba(99, 102, 241, 0.1);
+    color: var(--accent-start);
+}
+
+.schedule-item.expanded .schedule-actions {
     opacity: 1;
     pointer-events: auto;
     transform: translateY(-50%) scale(1);
@@ -1566,4 +1579,15 @@ input[type="time"]::-webkit-calendar-picker-indicator {
     font-size: 16px;
     font-weight: 700;
     color: var(--text-primary);
+}
+
+/* ===== Buttons ===== */
+.btn-schedule {
+    background: linear-gradient(135deg, #f59e0b, #ec4899);
+    color: white;
+    border: none;
+    box-shadow: 0 4px 15px rgba(236, 72, 153, 0.3);
+}
+.btn-schedule:active {
+    transform: scale(0.98);
 }

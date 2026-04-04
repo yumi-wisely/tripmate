@@ -650,6 +650,7 @@
     let currentTripId = null;
     let currentDayIndex = 0;
     let currentMemberFilter = 'all';
+    let currentEditScheduleId = null;
 
     function openTripSchedule() {
         currentDayIndex = 0;
@@ -677,6 +678,17 @@
 
         // Title
         document.getElementById('trip-detail-title').textContent = trip.name;
+
+        // Cover Banner
+        const banner = document.getElementById('schedule-cover-banner');
+        if (banner) {
+            if (trip.coverImage) {
+                banner.style.backgroundImage = `url('${trip.coverImage}')`;
+                banner.style.display = 'block';
+            } else {
+                banner.style.display = 'none';
+            }
+        }
 
         // Permissions
         const isCreator = trip.createdBy === state.user.id || (trip.participantIds && trip.participantIds[0] === state.user.id);
@@ -858,9 +870,14 @@
                     </div>
                     ${s.memo ? `<div class="schedule-memo" style="font-size:13px; color:var(--text-secondary); margin-top:4px; padding-left:12px; border-left:2px solid var(--border); white-space:pre-wrap;">${escapeHtml(s.memo)}</div>` : ''}
                     <div class="schedule-creator">${creator}が追加</div>
-                    <button class="schedule-delete-btn" data-delete-schedule="${s.id}" aria-label="削除">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                    </button>
+                    <div class="schedule-actions">
+                        <button class="schedule-action-btn schedule-edit-btn" data-edit-schedule="${s.id}" aria-label="編集">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        </button>
+                        <button class="schedule-action-btn schedule-delete-btn" data-delete-schedule="${s.id}" aria-label="削除">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        </button>
+                    </div>
                 </div>
             `;
         }).join('');
@@ -877,6 +894,35 @@
             });
         });
 
+        // Edit handlers
+        list.querySelectorAll('.schedule-edit-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const sid = btn.dataset.editSchedule;
+                const s = trip.schedules.find(x => x.id === sid);
+                if (s) {
+                    currentEditScheduleId = s.id;
+                    document.getElementById('schedule-time').value = s.time || '';
+                    document.getElementById('schedule-end-time').value = s.endTime || '';
+                    document.getElementById('schedule-title').value = s.title || '';
+                    if (document.getElementById('schedule-memo')) document.getElementById('schedule-memo').value = s.memo || '';
+                    
+                    document.querySelectorAll('.toggle-btn[data-scope]').forEach(b => {
+                        b.classList.toggle('active', b.dataset.scope === (s.isShared ? 'shared' : 'personal'));
+                    });
+                    
+                    document.querySelectorAll('.icon-btn-choice').forEach(b => {
+                        b.classList.toggle('active', b.dataset.icon === s.icon);
+                    });
+
+                    document.querySelector('#modal-add-schedule .modal-header h2').textContent = '予定を編集';
+                    document.querySelector('#form-add-schedule button[type="submit"]').textContent = '更新する';
+
+                    openModal('modal-add-schedule');
+                }
+            });
+        });
+
         // Delete handlers
         list.querySelectorAll('.schedule-delete-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
@@ -884,12 +930,14 @@
                 const sid = btn.dataset.deleteSchedule;
                 const scheduleToRemove = trip.schedules.find(s => s.id === sid);
                 if(scheduleToRemove) {
-                    try {
-                        await db.collection('trips').doc(trip.id).update({
-                            schedules: firebase.firestore.FieldValue.arrayRemove(scheduleToRemove)
-                        });
-                        showToast('予定を削除しました');
-                    } catch(err) { console.error(err); }
+                    if (confirm('この予定を削除しますか？')) {
+                        try {
+                            await db.collection('trips').doc(trip.id).update({
+                                schedules: firebase.firestore.FieldValue.arrayRemove(scheduleToRemove)
+                            });
+                            showToast('予定を削除しました');
+                        } catch(err) { console.error(err); }
+                    }
                 }
             });
         });
@@ -1279,6 +1327,7 @@
 
         // Add schedule button
         document.getElementById('btn-add-schedule').addEventListener('click', () => {
+            currentEditScheduleId = null;
             document.getElementById('schedule-time').value = '';
             document.getElementById('schedule-end-time').value = '';
             document.getElementById('schedule-title').value = '';
@@ -1287,6 +1336,14 @@
             // Reset toggle
             document.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('active'));
             document.querySelector('.toggle-btn[data-scope="shared"]').classList.add('active');
+
+            document.querySelectorAll('.icon-btn-choice').forEach(b => b.classList.remove('active'));
+            const defaultIconBtn = document.querySelector('.icon-btn-choice[data-icon="📍"]');
+            if (defaultIconBtn) defaultIconBtn.classList.add('active');
+
+            document.querySelector('#modal-add-schedule .modal-header h2').textContent = '予定を追加';
+            document.querySelector('#form-add-schedule button[type="submit"]').textContent = '追加する';
+
             openModal('modal-add-schedule');
         });
 
@@ -1334,10 +1391,30 @@
                 return;
             }
 
-            addSchedule(currentTripId, dayStr, time, endTime, title, memo, isShared, icon);
-            closeAllModals();
-            renderSchedule(trip, days);
-            showToast('予定を追加しました！', 'success');
+            if (currentEditScheduleId) {
+                const oldS = trip.schedules.find(s => s.id === currentEditScheduleId);
+                const updatedSchedule = {
+                    ...oldS,
+                    date: dayStr,
+                    time: time,
+                    endTime: endTime || '',
+                    title: title,
+                    memo: memo,
+                    isShared: isShared,
+                    icon: icon
+                };
+                
+                const newSchedules = trip.schedules.map(s => s.id === currentEditScheduleId ? updatedSchedule : s);
+                db.collection('trips').doc(currentTripId).update({ schedules: newSchedules });
+                closeAllModals();
+                showToast('予定を更新しました！', 'success');
+            } else {
+                addSchedule(currentTripId, dayStr, time, endTime, title, memo, isShared, icon);
+                closeAllModals();
+                // Notice that addSchedule triggers a snapshot update, but let's re-render locally just in case
+                renderSchedule(trip, days);
+                showToast('予定を追加しました！', 'success');
+            }
         });
 
         // Edit trip Detail
