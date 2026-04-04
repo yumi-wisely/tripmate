@@ -1,4 +1,4 @@
-/* ===== TripMate App ===== */
+/* ===== HoKuToRi App ===== */
 (function () {
     'use strict';
 
