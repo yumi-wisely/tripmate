@@ -443,6 +443,11 @@
                     if (t) renderTripDetail();
                     else { currentTripId = null; goBack(); } // Trip was deleted
                 }
+                if (currentScreen === 'screen-trip-expenses' && currentTripId) {
+                    const t = state.trips.find(x => x.id === currentTripId);
+                    if (t) renderTripExpenses();
+                    else { currentTripId = null; goBack(); }
+                }
             }, err => console.error("Error listening to trips:", err));
     }
 
@@ -935,6 +940,157 @@
         return div.innerHTML;
     }
 
+    // ===== Trip Expenses =====
+    function openTripExpenses() {
+        navigateTo('screen-trip-expenses');
+        renderTripExpenses();
+    }
+
+    function renderTripExpenses() {
+        const trip = state.trips.find(t => t.id === currentTripId);
+        if (!trip) return;
+
+        const expenses = trip.expenses || [];
+        const total = expenses.reduce((sum, e) => sum + e.amount, 0);
+
+        document.getElementById('total-trip-expense').textContent = `¥${total.toLocaleString()}`;
+
+        const list = document.getElementById('expense-list');
+        const empty = document.getElementById('empty-expenses');
+
+        if (expenses.length === 0) {
+            list.classList.add('hidden');
+            empty.classList.remove('hidden');
+            return;
+        }
+
+        list.classList.remove('hidden');
+        empty.classList.add('hidden');
+
+        // Sort by date desc, then by createdAt desc
+        const sorted = [...expenses].sort((a, b) => {
+            if (a.date !== b.date) return new Date(b.date) - new Date(a.date);
+            return new Date(b.createdAt) - new Date(a.createdAt);
+        });
+
+        list.innerHTML = sorted.map(exp => {
+            let payerName = '未登録';
+            if (exp.paidBy === state.user.id) payerName = state.user.name;
+            else {
+                const f = state.friends.find(fr => fr.id === exp.paidBy);
+                if (f) payerName = f.name;
+            }
+            const dateStr = formatDateShort(exp.date);
+            
+            return `
+                <div class="expense-item">
+                    <div class="expense-icon">¥</div>
+                    <div class="expense-info">
+                        <div class="expense-title">${escapeHtml(exp.title)}</div>
+                        <div class="expense-meta">${dateStr} • ${escapeHtml(payerName)}が立替</div>
+                    </div>
+                    <div class="expense-amount">¥${exp.amount.toLocaleString()}</div>
+                    <button class="icon-btn btn-ghost expense-delete-btn" data-expense-id="${exp.id}" style="width:28px; height:28px; color:var(--text-tertiary); flex-shrink:0;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function calculateAndRenderSettlements(trip) {
+        const expenses = trip.expenses || [];
+        const balances = {}; 
+
+        const pids = trip.participantIds || [state.user.id, ...(trip.friendIds || [])];
+        pids.forEach(pid => balances[pid] = 0);
+
+        expenses.forEach(exp => {
+            const payer = exp.paidBy;
+            const split = exp.splitBetween || pids;
+            if (split.length === 0) return; 
+            
+            const perPerson = exp.amount / split.length;
+
+            if (balances[payer] !== undefined) balances[payer] += exp.amount;
+            
+            split.forEach(sPid => {
+                if (balances[sPid] !== undefined) balances[sPid] -= perPerson;
+            });
+        });
+
+        let debtors = [];
+        let creditors = [];
+        
+        for (const [pid, bal] of Object.entries(balances)) {
+            if (bal < -0.5) debtors.push({ id: pid, amount: -bal }); 
+            else if (bal > 0.5) creditors.push({ id: pid, amount: bal }); 
+        }
+
+        debtors.sort((a, b) => b.amount - a.amount);
+        creditors.sort((a, b) => b.amount - a.amount);
+
+        const transactions = [];
+        let d = 0;
+        let c = 0;
+
+        while (d < debtors.length && c < creditors.length) {
+            const debtor = debtors[d];
+            const creditor = creditors[c];
+            const amount = Math.min(debtor.amount, creditor.amount);
+            
+            if (amount >= 1) { 
+                transactions.push({
+                    from: debtor.id,
+                    to: creditor.id,
+                    amount: Math.round(amount)
+                });
+            }
+
+            debtor.amount -= amount;
+            creditor.amount -= amount;
+
+            if (debtor.amount < 0.5) d++;
+            if (creditor.amount < 0.5) c++;
+        }
+
+        const resContainer = document.getElementById('settlement-results');
+        const emptyContainer = document.getElementById('no-settlement');
+
+        if (transactions.length === 0) {
+            resContainer.style.display = 'none';
+            emptyContainer.style.display = 'block';
+        } else {
+            resContainer.style.display = 'flex';
+            emptyContainer.style.display = 'none';
+            
+            resContainer.innerHTML = transactions.map(t => {
+                const fromName = t.from === state.user.id ? state.user.name : (state.friends.find(f => f.id === t.from)?.name || '未登録');
+                const toName = t.to === state.user.id ? state.user.name : (state.friends.find(f => f.id === t.to)?.name || '未登録');
+                
+                return `
+                    <div class="settlement-card">
+                        <div class="settlement-person">
+                            <div class="settlement-avatar">${fromName.charAt(0)}</div>
+                            <span style="font-size:12px; font-weight:600; color:var(--text-secondary); text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%;">${escapeHtml(fromName)}</span>
+                        </div>
+                        <div class="settlement-arrow">
+                            <span style="font-size:12px; font-weight:700; color:var(--text-tertiary); margin-bottom:2px;">払う</span>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+                        </div>
+                        <div class="settlement-person">
+                            <div class="settlement-avatar" style="background:var(--accent-gradient); color:white; border:none;">${toName.charAt(0)}</div>
+                            <span style="font-size:12px; font-weight:600; color:var(--text-secondary); text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%;">${escapeHtml(toName)}</span>
+                        </div>
+                        <div class="settlement-amount" style="min-width:60px; text-align:right;">
+                            ¥${t.amount.toLocaleString()}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+
     // ===== Event Setup =====
     function setupEvents() {
         // Back buttons
@@ -1319,6 +1475,126 @@
         if (btnGoSchedule) {
             btnGoSchedule.addEventListener('click', () => {
                 if (currentTripId) openTripSchedule();
+            });
+        }
+
+        const btnGoExpenses = document.getElementById('btn-go-expenses');
+        if (btnGoExpenses) {
+            btnGoExpenses.addEventListener('click', () => {
+                if (currentTripId) openTripExpenses();
+            });
+        }
+        
+        const btnAddExpense = document.getElementById('btn-add-expense');
+        if (btnAddExpense) {
+            btnAddExpense.addEventListener('click', () => {
+                const trip = state.trips.find(t => t.id === currentTripId);
+                if (!trip) return;
+                
+                document.getElementById('expense-amount').value = '';
+                document.getElementById('expense-date').value = formatDateISO(new Date());
+                document.getElementById('expense-title').value = '';
+                
+                const pids = trip.participantIds || [state.user.id, ...(trip.friendIds || [])];
+                const members = pids.map(pid => {
+                    let n = '未登録';
+                    if(pid === state.user.id) n = state.user.name + ' (あなた)';
+                    else {
+                        const f = state.friends.find(fr => fr.id === pid);
+                        if(f) n = f.name;
+                    }
+                    return { id: pid, name: n };
+                });
+
+                const payerSelect = document.getElementById('expense-payer');
+                payerSelect.innerHTML = members.map(m => `<option value="${m.id}">${escapeHtml(m.name)}</option>`).join('');
+                payerSelect.value = state.user.id;
+
+                const splitSelector = document.getElementById('expense-split-selector');
+                splitSelector.innerHTML = members.map(m => `
+                    <label style="display:flex; align-items:center; gap:4px; font-size:13px; background:white; padding:6px 12px; border-radius:16px; border:1px solid var(--border);">
+                        <input type="checkbox" class="split-checkbox" value="${m.id}" checked>
+                        ${escapeHtml(m.name.replace(' (あなた)',''))}
+                    </label>
+                `).join('');
+
+                openModal('modal-add-expense');
+            });
+        }
+
+        const formAddExpense = document.getElementById('form-add-expense');
+        if (formAddExpense) {
+            formAddExpense.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const trip = state.trips.find(t => t.id === currentTripId);
+                if (!trip) return;
+
+                const amount = parseInt(document.getElementById('expense-amount').value, 10);
+                const date = document.getElementById('expense-date').value;
+                const title = document.getElementById('expense-title').value.trim();
+                const paidBy = document.getElementById('expense-payer').value;
+                
+                const splitCheckboxes = document.querySelectorAll('.split-checkbox:checked');
+                const splitBetween = Array.from(splitCheckboxes).map(cb => cb.value);
+
+                if (isNaN(amount) || amount <= 0 || !title || splitBetween.length === 0) {
+                    showToast('正しく入力してください（割る人は1人以上不可欠です）', 'error');
+                    return;
+                }
+
+                const newExpense = {
+                    id: uuid(),
+                    amount,
+                    date,
+                    title,
+                    paidBy,
+                    splitBetween,
+                    createdAt: new Date().toISOString()
+                };
+
+                try {
+                    const currentExpenses = trip.expenses || [];
+                    await db.collection('trips').doc(currentTripId).update({
+                        expenses: [...currentExpenses, newExpense]
+                    });
+                    closeAllModals();
+                    showToast('経費を追加しました', 'success');
+                } catch (err) {
+                    console.error(err);
+                    showToast('追加に失敗しました', 'error');
+                }
+            });
+        }
+
+        const btnViewSettlement = document.getElementById('btn-view-settlement');
+        if (btnViewSettlement) {
+            btnViewSettlement.addEventListener('click', () => {
+                const trip = state.trips.find(t => t.id === currentTripId);
+                if (!trip) return;
+                calculateAndRenderSettlements(trip);
+                openModal('modal-settlement');
+            });
+        }
+        
+        const expenseList = document.getElementById('expense-list');
+        if (expenseList) {
+            expenseList.addEventListener('click', async (e) => {
+                const delBtn = e.target.closest('.expense-delete-btn');
+                if (delBtn) {
+                    const expId = delBtn.dataset.expenseId;
+                    const trip = state.trips.find(t => t.id === currentTripId);
+                    if (!trip || !trip.expenses) return;
+                    const expenseToRemove = trip.expenses.find(x => x.id === expId);
+                    if (expenseToRemove && confirm('この経費を削除しますか？')) {
+                        try {
+                            const newExpenses = trip.expenses.filter(x => x.id !== expId);
+                            await db.collection('trips').doc(currentTripId).update({
+                                expenses: newExpenses
+                            });
+                            showToast('経費を削除しました');
+                        } catch (err) { console.error(err); }
+                    }
+                }
             });
         }
     }

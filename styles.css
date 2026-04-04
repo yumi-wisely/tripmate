@@ -1480,3 +1480,90 @@ input[type="time"]::-webkit-calendar-picker-indicator {
     opacity: 1;
     transform: scale(1.05);
 }
+
+/* ===== Expenses ===== */
+.expense-item {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.expense-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(99, 102, 241, 0.1);
+    color: var(--accent-start);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+.expense-info {
+    flex: 1;
+}
+.expense-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+}
+.expense-meta {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+.expense-amount {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.settlement-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.settlement-person {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: 60px;
+}
+.settlement-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--bg-card-hover);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--text-secondary);
+}
+.settlement-arrow {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    color: var(--accent-mid);
+}
+.settlement-arrow svg {
+    width: 24px;
+    height: 24px;
+}
+.settlement-amount {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+}

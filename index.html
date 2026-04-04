@@ -191,9 +191,12 @@
                 </div>
             </div>
             
-            <div style="position:absolute; bottom:0; left:0; right:0; padding:16px 20px; background:var(--bg-glass-strong); backdrop-filter:blur(10px); border-top:1px solid var(--border-light); z-index:10;">
-                <button id="btn-go-schedule" class="btn btn-primary btn-full" style="font-size:16px; padding:16px;">
-                    📅 旅の予定・しおりを見る
+            <div style="position:absolute; bottom:0; left:0; right:0; padding:16px 20px; background:var(--bg-glass-strong); backdrop-filter:blur(10px); border-top:1px solid var(--border-light); z-index:10; display:flex; gap:12px;">
+                <button id="btn-go-schedule" class="btn btn-secondary" style="flex:1; font-size:15px; padding:16px;">
+                    📅 しおり
+                </button>
+                <button id="btn-go-expenses" class="btn btn-primary" style="flex:1; font-size:15px; padding:16px;">
+                    💰 経費・精算
                 </button>
             </div>
         </section>
@@ -241,6 +244,46 @@
             </div>
 
             <button id="btn-add-schedule" class="fab" aria-label="予定追加">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+        </section>
+
+        <!-- ===== Trip Expenses Screen ===== -->
+        <section id="screen-trip-expenses" class="screen">
+            <header class="app-header">
+                <button class="icon-btn back-btn" data-back aria-label="戻る">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
+                <div style="display:flex; flex-direction:column; align-items:center; flex:1; overflow:hidden;">
+                    <h1 id="expense-trip-title" class="header-title" style="font-size:18px; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;">経費・精算</h1>
+                </div>
+                <div class="header-actions">
+                    <button id="btn-view-settlement" class="icon-btn" aria-label="精算結果を見る">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></svg>
+                    </button>
+                </div>
+            </header>
+
+            <div class="expenses-content" style="flex:1; overflow-y:auto; padding:16px 20px 100px;">
+                <!-- Summary Card -->
+                <div class="expense-summary-card glass-card" style="margin-bottom:24px; text-align:center; padding:20px;">
+                    <p style="font-size:13px; color:var(--text-secondary); font-weight:600; margin-bottom:8px; text-transform:uppercase;">総経費額</p>
+                    <h2 id="total-trip-expense" style="font-size:32px; font-weight:800; color:var(--text-primary); margin:0;">¥0</h2>
+                </div>
+
+                <!-- Expense List -->
+                <div id="expense-list" style="display:flex; flex-direction:column; gap:12px;">
+                    <!-- Expenses rendered here -->
+                </div>
+                
+                <div id="empty-expenses" class="empty-state small">
+                    <div class="empty-icon">💸</div>
+                    <p class="empty-title">経費の記録がありません</p>
+                    <p class="empty-subtitle">＋ボタンで追加しよう</p>
+                </div>
+            </div>
+
+            <button id="btn-add-expense" class="fab" aria-label="経費追加">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </button>
         </section>
@@ -382,6 +425,68 @@
                     </div>
                     <button type="submit" class="btn btn-primary btn-full">追加する</button>
                 </form>
+            </div>
+        </div>
+
+        <!-- Add Expense Modal -->
+        <div id="modal-add-expense" class="modal-overlay">
+            <div class="modal glass-modal">
+                <div class="modal-header">
+                    <h2>経費を追加</h2>
+                    <button class="icon-btn modal-close" data-close-modal aria-label="閉じる">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>
+                <form id="form-add-expense" class="modal-body">
+                    <div class="input-row">
+                        <div class="input-group" style="flex:2;">
+                            <label for="expense-amount">金額 (円)</label>
+                            <input type="number" id="expense-amount" placeholder="0" required min="1" step="1" style="font-size:24px; font-weight:700;">
+                        </div>
+                        <div class="input-group" style="flex:1;">
+                            <label for="expense-date">日付</label>
+                            <input type="date" id="expense-date" required>
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label for="expense-title">何（どこ）</label>
+                        <input type="text" id="expense-title" placeholder="例: ホテル代、夕食、タクシー" required maxlength="50">
+                    </div>
+                    <div class="input-group">
+                        <label for="expense-payer">支払った人</label>
+                        <select id="expense-payer" style="width:100%; padding:14px 16px; border-radius:var(--radius-md); border:1px solid var(--border); background:var(--bg-input); font-family:var(--font); font-size:15px; outline:none; appearance:none;">
+                            <!-- Populated dynamically -->
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>誰と割るか (デフォルトは全員)</label>
+                        <div id="expense-split-selector" class="split-selector" style="display:flex; flex-wrap:wrap; gap:8px;">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-full">記録する</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Settlement Modal -->
+        <div id="modal-settlement" class="modal-overlay">
+            <div class="modal glass-modal">
+                <div class="modal-header">
+                    <h2>精算結果</h2>
+                    <button class="icon-btn modal-close" data-close-modal aria-label="閉じる">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div id="settlement-results" style="display:flex; flex-direction:column; gap:12px; margin-bottom:20px;">
+                        <!-- Settelments go here -->
+                    </div>
+                    <div id="no-settlement" style="text-align:center; padding:20px; display:none;">
+                        <p style="color:var(--text-secondary); font-size:14px;">全員の残高は0です。精算は必要ありません 🎉</p>
+                    </div>
+                    <button class="btn btn-primary btn-full modal-close" data-close-modal>OK</button>
+                </div>
             </div>
         </div>
 
