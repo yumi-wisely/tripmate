@@ -868,6 +868,14 @@
                         ${s.icon ? `<span class="schedule-icon-display">${s.icon}</span>` : ''}
                         ${escapeHtml(s.title)}
                     </div>
+                    ${s.location ? `
+                    <div class="schedule-location">
+                        <span style="font-size:13px;">📍</span>
+                        <span style="font-size:12px; color:var(--text-secondary);">${escapeHtml(s.location)}</span>
+                        <a href="https://maps.google.com/?q=${encodeURIComponent(s.location)}" target="_blank" rel="noopener" class="map-open-btn" onclick="event.stopPropagation()">
+                            マップで開く
+                        </a>
+                    </div>` : ''}
                     ${s.memo ? `<div class="schedule-memo" style="font-size:13px; color:var(--text-secondary); margin-top:4px; padding-left:12px; border-left:2px solid var(--border); white-space:pre-wrap;">${escapeHtml(s.memo)}</div>` : ''}
                     <div class="schedule-creator">${creator}が追加</div>
                     <div class="schedule-actions">
@@ -905,6 +913,8 @@
                     document.getElementById('schedule-time').value = s.time || '';
                     document.getElementById('schedule-end-time').value = s.endTime || '';
                     document.getElementById('schedule-title').value = s.title || '';
+                    const locEl = document.getElementById('schedule-location');
+                    if (locEl) locEl.value = s.location || '';
                     if (document.getElementById('schedule-memo')) document.getElementById('schedule-memo').value = s.memo || '';
                     
                     document.querySelectorAll('.toggle-btn[data-scope]').forEach(b => {
@@ -943,7 +953,7 @@
         });
     }
 
-    async function addSchedule(tripId, date, time, endTime, title, memo, isShared, icon) {
+    async function addSchedule(tripId, date, time, endTime, title, location, memo, isShared, icon) {
         const scheduleId = uuid();
         const newSchedule = {
             id: scheduleId,
@@ -951,6 +961,7 @@
             time: time,
             endTime: endTime || '',
             title: title,
+            location: location || '',
             memo: memo || '',
             isShared: isShared,
             icon: icon || '📍',
@@ -1374,6 +1385,8 @@
             const time = document.getElementById('schedule-time').value;
             const endTime = document.getElementById('schedule-end-time').value;
             const title = document.getElementById('schedule-title').value.trim();
+            const locationEl = document.getElementById('schedule-location');
+            const location = locationEl ? locationEl.value.trim() : '';
             const memoEl = document.getElementById('schedule-memo');
             const memo = memoEl ? memoEl.value.trim() : '';
             const isShared = document.querySelector('.toggle-btn[data-scope].active').dataset.scope === 'shared';
@@ -1399,6 +1412,7 @@
                     time: time,
                     endTime: endTime || '',
                     title: title,
+                    location: location,
                     memo: memo,
                     isShared: isShared,
                     icon: icon
@@ -1409,13 +1423,13 @@
                 closeAllModals();
                 showToast('予定を更新しました！', 'success');
             } else {
-                addSchedule(currentTripId, dayStr, time, endTime, title, memo, isShared, icon);
+                addSchedule(currentTripId, dayStr, time, endTime, title, location, memo, isShared, icon);
                 closeAllModals();
-                // Notice that addSchedule triggers a snapshot update, but let's re-render locally just in case
                 renderSchedule(trip, days);
                 showToast('予定を追加しました！', 'success');
             }
         });
+
 
         // Edit trip Detail
         const btnEditDetail = document.getElementById('btn-edit-trip-detail');
