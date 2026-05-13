@@ -842,53 +842,60 @@
             daySchedules = daySchedules.filter(s => s.isShared || s.createdBy === currentMemberFilter);
         }
 
-        if (daySchedules.length === 0) {
-            list.classList.add('hidden');
-            empty.classList.remove('hidden');
-            return;
-        }
-
         list.classList.remove('hidden');
         empty.classList.add('hidden');
 
-        list.innerHTML = daySchedules.map(s => {
-            const scopeLabel = s.isShared ? 'みんな' : '自分だけ';
-            const scopeClass = s.isShared ? '' : 'personal';
-            const creator = s.createdBy === state.user.id ? 'あなた' : getNameById(s.createdBy);
+        let html = '';
+        for (let h = 0; h < 24; h++) {
+            const hourStr = String(h).padStart(2, '0');
+            const hourSchedules = daySchedules.filter(s => s.time.startsWith(hourStr + ':'));
 
-            const timeDisplay = s.endTime ? `${s.time} 〜 ${s.endTime}` : s.time;
+            html += `
+                <div class="timeline-hour" style="position: relative; margin-bottom: ${hourSchedules.length > 0 ? '8px' : '24px'}; padding-top: 4px;">
+                    <div style="position: absolute; left: -19px; top: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--bg-primary); border: 2px solid var(--border); z-index: 1;"></div>
+                    <div style="font-size: 14px; font-weight: 700; color: var(--text-tertiary); margin-bottom: ${hourSchedules.length > 0 ? '12px' : '0'}; line-height: 1;">${hourStr}:00</div>
+                    ${hourSchedules.map(s => {
+                        const scopeLabel = s.isShared ? 'みんな' : '自分だけ';
+                        const scopeClass = s.isShared ? '' : 'personal';
+                        const creator = s.createdBy === state.user.id ? 'あなた' : getNameById(s.createdBy);
 
-            return `
-                <div class="schedule-item ${scopeClass}" data-schedule-id="${s.id}">
-                    <div class="schedule-time">
-                        ${timeDisplay}
-                        <span class="schedule-scope-tag">${scopeLabel}</span>
-                    </div>
-                    <div class="schedule-title">
-                        ${s.icon ? `<span class="schedule-icon-display">${s.icon}</span>` : ''}
-                        ${escapeHtml(s.title)}
-                    </div>
-                    ${s.location ? `
-                    <div class="schedule-location">
-                        <span style="font-size:13px;">📍</span>
-                        <span style="font-size:12px; color:var(--text-secondary);">${escapeHtml(s.location)}</span>
-                        <a href="https://maps.google.com/?q=${encodeURIComponent(s.location)}" target="_blank" rel="noopener" class="map-open-btn" onclick="event.stopPropagation()">
-                            マップで開く
-                        </a>
-                    </div>` : ''}
-                    ${s.memo ? `<div class="schedule-memo" style="font-size:13px; color:var(--text-secondary); margin-top:4px; padding-left:12px; border-left:2px solid var(--border); white-space:pre-wrap;">${escapeHtml(s.memo)}</div>` : ''}
-                    <div class="schedule-creator">${creator}が追加</div>
-                    <div class="schedule-actions">
-                        <button class="schedule-action-btn schedule-edit-btn" data-edit-schedule="${s.id}" aria-label="編集">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                        </button>
-                        <button class="schedule-action-btn schedule-delete-btn" data-delete-schedule="${s.id}" aria-label="削除">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                        </button>
-                    </div>
+                        const timeDisplay = s.endTime ? \`\${s.time} 〜 \${s.endTime}\` : s.time;
+
+                        return \`
+                            <div class="schedule-item \${scopeClass}" data-schedule-id="\${s.id}">
+                                <div class="schedule-time">
+                                    \${timeDisplay}
+                                    <span class="schedule-scope-tag">\${scopeLabel}</span>
+                                </div>
+                                <div class="schedule-title">
+                                    \${s.icon ? \`<span class="schedule-icon-display">\${s.icon}</span>\` : ''}
+                                    \${escapeHtml(s.title)}
+                                </div>
+                                \${s.location ? \`
+                                <div class="schedule-location">
+                                    <span style="font-size:13px;">📍</span>
+                                    <span style="font-size:12px; color:var(--text-secondary);">\${escapeHtml(s.location)}</span>
+                                    <a href="https://maps.google.com/?q=\${encodeURIComponent(s.location)}" target="_blank" rel="noopener" class="map-open-btn" onclick="event.stopPropagation()">
+                                        マップで開く
+                                    </a>
+                                </div>\` : ''}
+                                \${s.memo ? \`<div class="schedule-memo" style="font-size:13px; color:var(--text-secondary); margin-top:4px; padding-left:12px; border-left:2px solid var(--border); white-space:pre-wrap;">\${escapeHtml(s.memo)}</div>\` : ''}
+                                <div class="schedule-creator">\${creator}が追加</div>
+                                <div class="schedule-actions">
+                                    <button class="schedule-action-btn schedule-edit-btn" data-edit-schedule="\${s.id}" aria-label="編集">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                    </button>
+                                    <button class="schedule-action-btn schedule-delete-btn" data-delete-schedule="\${s.id}" aria-label="削除">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        \`;
+                    }).join('')}
                 </div>
             `;
-        }).join('');
+        }
+        list.innerHTML = html;
 
         // Toggle expand on tap
         list.querySelectorAll('.schedule-item').forEach(item => {
